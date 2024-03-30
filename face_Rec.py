@@ -46,21 +46,41 @@ def recognize_face(image):
     faces = detect_faces(image)
 
     for (x, y, w, h) in faces:
-        face_roi = image[y:y+h, x:x+w]
+        face_roi = image[y:y + h, x:x + w]
         face_gray = cv2.cvtColor(face_roi, cv2.COLOR_BGR2GRAY)
 
-        cv2.rectangle(image, (x, y), (x+w, y+h), (0, 255, 255), 2)
+        cv2.rectangle(image, (x, y), (x + w, y + h), (0, 255, 255), 2)
 
         c.execute("SELECT id, name FROM faces")
         for row in c.fetchall():
             face_id, name = row
-            face_image = cv2.imread("faces/{}.jpg".format(face_id), cv2.IMREAD_GRAYSCALE)
+            face_path = "faces/{}.jpg".format(face_id)
 
-            match = cv2.matchTemplate(face_image, face_gray, cv2.TM_CCOEFF_NORMED)
+            try:
+                face_image = cv2.imread(face_path, cv2.IMREAD_GRAYSCALE)
+            except FileNotFoundError:
+                print(f"Error: Face image not found: {face_path}")
+                continue
+                
+            if face_image is None:
+                print(f"Error: Could not read face image: {face_path}")
+                continue  
+                
+            if face_image.shape[0] > face_gray.shape[0] or face_image.shape[1] > face_gray.shape[1]:
+                print("Template is larger than image. Resizing...")
+                template = cv2.resize(face_image, (face_gray.shape[1], face_gray.shape[0]))
+            else:
+                template = face_image 
+
+            match = cv2.matchTemplate(template, face_gray, cv2.TM_CCOEFF_NORMED)
             confidence = np.max(match)
             threshold = 0.8
+
             if confidence > threshold:
-                cv2.putText(image, name, (x, y+h+30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 2, cv2.LINE_AA)
+                cv2.putText(image, name, (x, y + h + 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 2, cv2.LINE_AA)
+
+    return image
+
 
 directory = "faces"
 if not os.path.exists(directory):
@@ -77,7 +97,7 @@ while True:
     cv2.putText(frame, "Press 'r' to register a new face with a name.", (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
 
     cv2.imshow('Face Recognition', frame)
-    time.sleep(2)
+    #time.sleep(0.1)
 
     key = cv2.waitKey(1)
     if key == ord('q'):
